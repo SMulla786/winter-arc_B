@@ -1,0 +1,461 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// -----------------------------------------------------------------------------
+// ENUMS
+// -----------------------------------------------------------------------------
+
+enum Role {
+  ADMIN
+  USER
+}
+
+enum Gender {
+  MALE
+  FEMALE
+  OTHER
+}
+
+enum GoalType {
+  WEIGHT_LOSS
+  WEIGHT_GAIN
+  MAINTAIN_WEIGHT
+  BUILD_MUSCLE
+  IMPROVE_FITNESS
+  INCREASE_ACTIVITY
+}
+
+enum LifestyleType {
+  STUDENT
+  OFFICE_WORKER
+  WORK_FROM_HOME
+  OTHER
+}
+
+enum DietType {
+  VEGETARIAN
+  NON_VEGETARIAN
+  VEGAN
+  EGGETARIAN
+}
+
+enum MealType {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+}
+
+enum ActivityType {
+  WALKING
+  RUNNING
+  CYCLING
+  WORKOUT
+  OTHER
+}
+
+enum ExpenseCategory {
+  BREAKFAST
+  LUNCH
+  DINNER
+  SNACK
+  RESTAURANT
+  GROCERY
+  DRINKS
+  OTHER
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  EXPIRED
+  CANCELLED
+  PENDING
+}
+
+// -----------------------------------------------------------------------------
+// USER & PROFILE
+// -----------------------------------------------------------------------------
+
+model User {
+  id           String        @id @default(uuid())
+  email        String        @unique
+  passwordHash String
+  name         String
+  role         Role          @default(USER)
+  isActive     Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  profile          UserProfile?
+  subscriptions    Subscription[]
+  usageLogs        UsageLog[]
+  meals            Meal[]
+  foodImages       FoodImage[]
+  foodAnalyses     FoodAnalysis[]
+  activities       Activity[]
+  workoutSessions  WorkoutSession[]
+  expenses         Expense[]
+  receipts         Receipt[]
+  waterLogs        WaterLog[]
+  weightLogs       WeightLog[]
+  dailySummaries   DailySummary[]
+  weeklySummaries  WeeklySummary[]
+  aiMemories       AIMemory[]
+  aiConversations  AIConversation[]
+  notifications    Notification[]
+  exercisesCreated Exercise[]        @relation("AdminExercises")
+}
+
+model UserProfile {
+  id                 String         @id @default(uuid())
+  userId             String         @unique
+  user               User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  age                Int?
+  gender             Gender?
+  heightCm           Float?
+  weightKg           Float?
+  targetWeightKg     Float?
+  goal               GoalType?      @default(WEIGHT_LOSS)
+  lifestyleType      LifestyleType? @default(OFFICE_WORKER)
+  
+  workTiming         String?
+  wakeTime           String?
+  sleepTime          String?
+  
+  dietType           DietType?      @default(NON_VEGETARIAN)
+  favoriteFoods      String[]       @default([])
+  avoidedFoods       String[]       @default([])
+  allergies          String[]       @default([])
+  cuisinePreferences String[]       @default([])
+  
+  dailyBudget        Float?         @default(300)
+  monthlyBudget      Float?
+  city               String?
+  area               String?
+
+  createdAt          DateTime       @default(now())
+  updatedAt          DateTime       @updatedAt
+}
+
+// -----------------------------------------------------------------------------
+// SUBSCRIPTIONS & PLANS
+// -----------------------------------------------------------------------------
+
+model Plan {
+  id           String        @id @default(uuid())
+  name         String        @unique // e.g. "Free", "Pro", "Premium"
+  price        Float         @default(0)
+  currency     String        @default("INR")
+  durationDays Int           @default(30)
+  isDefault    Boolean       @default(false)
+  status       Boolean       @default(true)
+  createdAt    DateTime      @default(now())
+  updatedAt    DateTime      @updatedAt
+
+  features     PlanFeature[]
+  subscriptions Subscription[]
+}
+
+model PlanFeature {
+  id         String   @id @default(uuid())
+  planId     String
+  plan       Plan     @relation(fields: [planId], references: [id], onDelete: Cascade)
+  featureKey String   // e.g. "food_scan", "ai_chat", "expense_tracking"
+  isEnabled  Boolean  @default(true)
+  limitValue Int?     // null = unlimited, Int = monthly quota
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  @@unique([planId, featureKey])
+}
+
+model Subscription {
+  id               String             @id @default(uuid())
+  userId           String
+  user             User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  planId           String
+  plan             Plan               @relation(fields: [planId], references: [id])
+  status           SubscriptionStatus @default(ACTIVE)
+  startDate        DateTime           @default(now())
+  endDate          DateTime
+  razorpayPaymentId String?
+  razorpayOrderId   String?
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+}
+
+model UsageLog {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  featureKey  String
+  periodStart DateTime
+  periodEnd   DateTime
+  count       Int      @default(1)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, featureKey, periodStart])
+}
+
+// -----------------------------------------------------------------------------
+// FOOD & NUTRITION
+// -----------------------------------------------------------------------------
+
+model Meal {
+  id            String     @id @default(uuid())
+  userId        String
+  user          User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  mealType      MealType
+  name          String
+  totalCalories Float      @default(0)
+  totalProteinG Float      @default(0)
+  totalCarbsG   Float      @default(0)
+  totalFatG     Float      @default(0)
+  notes         String?
+  loggedAt      DateTime   @default(now())
+  createdAt     DateTime   @default(now())
+  updatedAt     DateTime   @updatedAt
+
+  items         MealItem[]
+}
+
+model MealItem {
+  id        String @id @default(uuid())
+  mealId    String
+  meal      Meal   @relation(fields: [mealId], references: [id], onDelete: Cascade)
+  name      String
+  quantity  String @default("1 portion")
+  calories  Float  @default(0)
+  proteinG  Float  @default(0)
+  carbsG    Float  @default(0)
+  fatG      Float  @default(0)
+}
+
+model FoodImage {
+  id          String         @id @default(uuid())
+  userId      String
+  user        User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  imageUrl    String
+  storagePath String?
+  mimeType    String         @default("image/jpeg")
+  createdAt   DateTime       @default(now())
+
+  analyses    FoodAnalysis[]
+}
+
+model FoodAnalysis {
+  id                 String     @id @default(uuid())
+  userId             String
+  user               User       @relation(fields: [userId], references: [id], onDelete: Cascade)
+  foodImageId        String?
+  foodImage          FoodImage? @relation(fields: [foodImageId], references: [id], onDelete: SetNull)
+  
+  detectedItemsJson  Json
+  estimatedCalories  Float
+  estimatedProteinG  Float
+  estimatedCarbsG    Float
+  estimatedFatG      Float
+  rawAiResponseJson  Json?
+  confidence         Float      @default(0.85)
+
+  createdAt          DateTime   @default(now())
+}
+
+// -----------------------------------------------------------------------------
+// ACTIVITIES & EXERCISES
+// -----------------------------------------------------------------------------
+
+model Activity {
+  id              String       @id @default(uuid())
+  userId          String
+  user            User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  activityType    ActivityType @default(WALKING)
+  durationMinutes Int          @default(0)
+  steps           Int          @default(0)
+  caloriesBurned  Float        @default(0)
+  loggedAt        DateTime     @default(now())
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+}
+
+model Exercise {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  category    String   @default("Cardio") // Cardio, Strength, Flexibility
+  muscleGroup String   @default("Full Body")
+  difficulty  String   @default("Beginner") // Beginner, Intermediate, Advanced
+  equipment   String   @default("None")
+  instructions String?
+  imageUrl    String?
+  videoUrl    String?
+  isCustom    Boolean  @default(false)
+  createdById String?
+  createdBy   User?    @relation("AdminExercises", fields: [createdById], references: [id], onDelete: SetNull)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model WorkoutSession {
+  id              String   @id @default(uuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title           String
+  durationMinutes Int      @default(0)
+  caloriesBurned  Float    @default(0)
+  notes           String?
+  completedAt     DateTime @default(now())
+  createdAt       DateTime @default(now())
+}
+
+// -----------------------------------------------------------------------------
+// EXPENSES & RECEIPTS
+// -----------------------------------------------------------------------------
+
+model Expense {
+  id             String          @id @default(uuid())
+  userId         String
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  category       ExpenseCategory @default(LUNCH)
+  foodName       String?
+  amount         Float
+  restaurantName String?
+  loggedAt       DateTime        @default(now())
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  receipt        Receipt?
+}
+
+model Receipt {
+  id                String   @id @default(uuid())
+  userId            String
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  expenseId         String?  @unique
+  expense           Expense? @relation(fields: [expenseId], references: [id], onDelete: SetNull)
+  imageUrl          String
+  extractedDataJson Json
+  totalAmount       Float
+  vendorName        String?
+  createdAt         DateTime @default(now())
+}
+
+// -----------------------------------------------------------------------------
+// WATER & WEIGHT LOGS
+// -----------------------------------------------------------------------------
+
+model WaterLog {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  amountMl   Int      @default(250)
+  glassCount Int      @default(1)
+  loggedDate DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model WeightLog {
+  id         String   @id @default(uuid())
+  userId     String
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weightKg   Float
+  waistCm    Float?
+  chestCm    Float?
+  armsCm     Float?
+  thighCm    Float?
+  loggedDate DateTime @default(now())
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+// -----------------------------------------------------------------------------
+// SUMMARIES & AI MEMORY
+// -----------------------------------------------------------------------------
+
+model DailySummary {
+  id             String   @id @default(uuid())
+  userId         String
+  user           User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  summaryDate    DateTime
+  totalCalories  Float    @default(0)
+  totalSteps     Int      @default(0)
+  totalWaterMl   Int      @default(0)
+  totalSpent     Float    @default(0)
+  workoutMinutes Int      @default(0)
+  aiInsightsJson Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+
+  @@unique([userId, summaryDate])
+}
+
+model WeeklySummary {
+  id               String   @id @default(uuid())
+  userId           String
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  weekStartDate    DateTime
+  weekEndDate      DateTime
+  avgDailyCalories Float    @default(0)
+  avgDailySteps    Float    @default(0)
+  totalSpent       Float    @default(0)
+  totalWorkouts    Int      @default(0)
+  aiSummaryText    String?
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+
+  @@unique([userId, weekStartDate])
+}
+
+model AIMemory {
+  id          String   @id @default(uuid())
+  userId      String
+  user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  memoryKey   String   // e.g. "usual_breakfast_time", "preferred_protein"
+  memoryValue String   // e.g. "9 AM", "Chicken & Eggs"
+  category    String   @default("lifestyle") // lifestyle, preference, financial
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([userId, memoryKey])
+}
+
+model AIConversation {
+  id        String      @id @default(uuid())
+  userId    String
+  user      User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String      @default("General Chat")
+  createdAt DateTime    @default(now())
+  updatedAt DateTime    @updatedAt
+
+  messages  AIMessage[]
+}
+
+model AIMessage {
+  id             String         @id @default(uuid())
+  conversationId String
+  conversation   AIConversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  role           String         // "user" | "assistant" | "system"
+  content        String
+  tokensUsed     Int?           @default(0)
+  createdAt      DateTime       @default(now())
+}
+
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  title     String
+  message   String
+  isRead    Boolean  @default(false)
+  type      String   @default("SYSTEM") // REMINDER, AI_INSIGHT, ALERT
+  createdAt DateTime @default(now())
+}
