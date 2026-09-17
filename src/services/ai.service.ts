@@ -45,7 +45,10 @@ Return ONLY valid JSON matching this schema:
 }`;
 
   try {
-    const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = ai.getGenerativeModel({
+      model: 'gemini-1.5-flash',
+      generationConfig: { responseMimeType: 'application/json' },
+    });
     const result = await model.generateContent([
       prompt,
       {
@@ -95,7 +98,10 @@ Return ONLY valid JSON with this format:
 }`;
 
   try {
-    const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = ai.getGenerativeModel({
+      model: 'gemini-1.5-flash',
+      generationConfig: { responseMimeType: 'application/json' },
+    });
     const result = await model.generateContent([
       prompt,
       {
@@ -149,7 +155,10 @@ Return ONLY valid JSON matching:
 }`;
 
   try {
-    const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = ai.getGenerativeModel({
+      model: 'gemini-1.5-flash',
+      generationConfig: { responseMimeType: 'application/json' },
+    });
     const result = await model.generateContent(prompt);
     return JSON.parse(result.response.text());
   } catch (err: any) {
@@ -194,7 +203,10 @@ Return ONLY valid JSON array matching:
 ]`;
 
   try {
-    const model = ai.getGenerativeModel({ model: 'gemini-1.5-flash' });
+    const model = ai.getGenerativeModel({
+      model: 'gemini-1.5-flash',
+      generationConfig: { responseMimeType: 'application/json' },
+    });
     const result = await model.generateContent(prompt);
     return JSON.parse(result.response.text());
   } catch (err: any) {

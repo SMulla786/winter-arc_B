@@ -1,6 +1,40 @@
 import { Request, Response } from 'express';
 import prisma from '../client';
 
+// Calculate daily recommended calories & macros using Mifflin-St Jeor equation
+const calculateUserTargets = (profile: any) => {
+  if (!profile || !profile.weightKg || !profile.heightCm || !profile.age) {
+    return { targetCalories: 2000, targetProtein: 80, targetCarbs: 250, targetFat: 65 };
+  }
+
+  const weight = Number(profile.weightKg);
+  const height = Number(profile.heightCm);
+  const age = Number(profile.age);
+
+  // BMR Calculation
+  let bmr = 10 * weight + 6.25 * height - 5 * age;
+  bmr += profile.gender === 'FEMALE' ? -161 : 5;
+
+  // Activity multiplier default (Moderately active = 1.375)
+  let tdee = bmr * 1.375;
+
+  // Adjust for goal
+  if (profile.goal === 'WEIGHT_LOSS') {
+    tdee -= 400;
+  } else if (profile.goal === 'BUILD_MUSCLE') {
+    tdee += 350;
+  } else if (profile.goal === 'WEIGHT_GAIN') {
+    tdee += 500;
+  }
+
+  const targetCalories = Math.round(tdee);
+  const targetProtein = Math.round((tdee * 0.25) / 4); // 25% calories from protein
+  const targetCarbs = Math.round((tdee * 0.50) / 4);   // 50% calories from carbs
+  const targetFat = Math.round((tdee * 0.25) / 9);     // 25% calories from fat
+
+  return { targetCalories, targetProtein, targetCarbs, targetFat };
+};
+
 export const getDailyMeals = async (req: Request, res: Response): Promise<void> => {
   try {
     const userId = (req as any).user?.userId;
@@ -27,6 +61,9 @@ export const getDailyMeals = async (req: Request, res: Response): Promise<void> 
       orderBy: { loggedAt: 'desc' },
     });
 
+    const profile = await prisma.userProfile.findUnique({ where: { userId } });
+    const targets = calculateUserTargets(profile);
+
     const totals = meals.reduce(
       (acc, meal) => {
         acc.calories += meal.totalCalories;
@@ -38,7 +75,7 @@ export const getDailyMeals = async (req: Request, res: Response): Promise<void> 
       { calories: 0, proteinG: 0, carbsG: 0, fatG: 0 }
     );
 
-    res.status(200).json({ meals, totals });
+    res.status(200).json({ meals, totals, targets });
   } catch (error: any) {
     res.status(500).json({ error: 'Failed to fetch daily meals.' });
   }

@@ -14,7 +14,10 @@
     "prisma:migrate:dev": "prisma migrate dev",
     "prisma:migrate:deploy": "prisma migrate deploy",
     "prisma:studio": "prisma studio",
-    "prisma:db:seed": "ts-node -r tsconfig-paths/register prisma/seed.ts"
+    "prisma:db:seed": "ts-node -r tsconfig-paths/register prisma/seed.ts",
+    "cli:create-user": "ts-node -r tsconfig-paths/register src/cli/create-user.ts",
+    "cli:seed-tests": "ts-node -r tsconfig-paths/register src/cli/seed-test-data.ts",
+    "cli:test-gemini": "ts-node -r tsconfig-paths/register src/cli/test-gemini.ts"
   },
   "dependencies": {
     "@aws-sdk/client-s3": "^3.758.0",

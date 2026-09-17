@@ -1,4 +1,6 @@
 import { Request, Response } from 'express';
+import fs from 'fs';
+import path from 'path';
 import prisma from '../client';
 import {
   analyzeFoodImage,
@@ -16,18 +18,46 @@ export const scanFoodPhoto = async (req: Request, res: Response): Promise<void> 
       return;
     }
 
-    const { imageBase64, mimeType = 'image/jpeg' } = req.body;
+    let imageBase64 = req.body.imageBase64;
+    let mimeType = req.body.mimeType || 'image/jpeg';
+    let imageUrl = '';
+    let storagePath = '';
+
+    // Handle local Multer file upload
+    if (req.file) {
+      const filePath = req.file.path;
+      const fileBuffer = fs.readFileSync(filePath);
+      imageBase64 = fileBuffer.toString('base64');
+      mimeType = req.file.mimetype;
+      imageUrl = `/uploads/meals/${req.file.filename}`;
+      storagePath = filePath;
+    }
+
     if (!imageBase64) {
-      res.status(400).json({ error: 'imageBase64 parameter is required.' });
+      res.status(400).json({ error: 'An image file upload or imageBase64 parameter is required.' });
       return;
     }
 
     const analysisResult = await analyzeFoodImage(imageBase64, mimeType);
 
-    // Save to FoodAnalysis table
-    await prisma.foodAnalysis.create({
+    // Save food image record
+    let foodImageRecord = null;
+    if (imageUrl) {
+      foodImageRecord = await prisma.foodImage.create({
+        data: {
+          userId,
+          imageUrl,
+          storagePath,
+          mimeType,
+        },
+      });
+    }
+
+    // Save food analysis record
+    const foodAnalysisRecord = await prisma.foodAnalysis.create({
       data: {
         userId,
+        foodImageId: foodImageRecord ? foodImageRecord.id : null,
         detectedItemsJson: analysisResult.items || [],
         estimatedCalories: analysisResult.estimatedCalories || 0,
         estimatedProteinG: analysisResult.estimatedProteinG || 0,
@@ -37,7 +67,11 @@ export const scanFoodPhoto = async (req: Request, res: Response): Promise<void> 
       },
     });
 
-    res.status(200).json({ analysis: analysisResult });
+    res.status(200).json({
+      analysis: analysisResult,
+      imageUrl: imageUrl || null,
+      foodAnalysisId: foodAnalysisRecord.id,
+    });
   } catch (error: any) {
     console.error('scanFoodPhoto controller error:', error);
     res.status(500).json({ error: error.message || 'Food scan failed.' });
@@ -52,15 +86,40 @@ export const scanReceiptPhoto = async (req: Request, res: Response): Promise<voi
       return;
     }
 
-    const { imageBase64, mimeType = 'image/jpeg' } = req.body;
+    let imageBase64 = req.body.imageBase64;
+    let mimeType = req.body.mimeType || 'image/jpeg';
+    let imageUrl = '';
+
+    if (req.file) {
+      const fileBuffer = fs.readFileSync(req.file.path);
+      imageBase64 = fileBuffer.toString('base64');
+      mimeType = req.file.mimetype;
+      imageUrl = `/uploads/receipts/${req.file.filename}`;
+    }
+
     if (!imageBase64) {
-      res.status(400).json({ error: 'imageBase64 is required.' });
+      res.status(400).json({ error: 'An image file upload or imageBase64 is required.' });
       return;
     }
 
     const receiptResult = await analyzeReceipt(imageBase64, mimeType);
 
-    res.status(200).json({ receipt: receiptResult });
+    // Save Receipt DB Record
+    const receiptRecord = await prisma.receipt.create({
+      data: {
+        userId,
+        imageUrl: imageUrl || '/uploads/receipts/demo_receipt.jpg',
+        extractedDataJson: receiptResult.items || [],
+        totalAmount: Number(receiptResult.totalAmount || 0),
+        vendorName: receiptResult.vendorName || 'Restaurant',
+      },
+    });
+
+    res.status(200).json({
+      receipt: receiptResult,
+      imageUrl: imageUrl || null,
+      receiptId: receiptRecord.id,
+    });
   } catch (error: any) {
     res.status(500).json({ error: error.message || 'Receipt scan failed.' });
   }
