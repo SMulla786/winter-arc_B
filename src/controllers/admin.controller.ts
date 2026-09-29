@@ -1,69 +1,77 @@
 import { Request, Response } from 'express';
 import prisma from '../client';
+import catchAsync from '../utils/catchAsync';
+import ApiError from '../utils/ApiError';
+import ApiResponse from '../utils/ApiResponse';
 
-export const getAdminStats = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const totalUsers = await prisma.user.count();
-    const activeUsers = await prisma.user.count({ where: { isActive: true } });
-    const totalMeals = await prisma.meal.count();
-    const totalAiScans = await prisma.foodAnalysis.count();
-    const plans = await prisma.plan.findMany({ include: { features: true } });
+export const getAdminStats = catchAsync(async (req: Request, res: Response) => {
+  const totalUsers = await prisma.user.count();
+  const activeUsers = await prisma.user.count({ where: { isActive: true } });
+  const paidSubscribers = await prisma.subscription.count({ where: { status: 'ACTIVE' } });
+  const totalMeals = await prisma.meal.count();
+  const totalAiScans = await prisma.foodAnalysis.count();
+  const plans = await prisma.plan.findMany({ include: { features: true } });
 
-    res.status(200).json({
-      stats: {
-        totalUsers,
-        activeUsers,
-        totalMeals,
-        totalAiScans,
-      },
-      plans,
-    });
-  } catch (error: any) {
-    res.status(500).json({ error: 'Failed to fetch admin stats.' });
-  }
-};
-
-export const getUsersList = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const users = await prisma.user.findMany({
-      select: {
-        id: true,
-        email: true,
-        name: true,
-        role: true,
-        isActive: true,
-        createdAt: true,
-        subscriptions: {
-          include: { plan: true },
-          take: 1,
+  res.status(200).json(
+    new ApiResponse(
+      200,
+      {
+        stats: {
+          totalUsers,
+          activeUsers,
+          paidSubscribers,
+          totalMeals,
+          totalAiScans,
+          monthlyRevenue: paidSubscribers * 299, // Calculated from active subscriptions
         },
+        plans,
       },
-      orderBy: { createdAt: 'desc' },
-    });
+      'Admin stats fetched successfully'
+    )
+  );
+});
 
-    res.status(200).json({ users });
-  } catch (error: any) {
-    res.status(500).json({ error: 'Failed to fetch users list.' });
+
+export const getUsersList = catchAsync(async (req: Request, res: Response) => {
+  const users = await prisma.user.findMany({
+    select: {
+      id: true,
+      email: true,
+      name: true,
+      role: true,
+      isActive: true,
+      createdAt: true,
+      subscriptions: {
+        include: { plan: true },
+        take: 1,
+      },
+    },
+    orderBy: { createdAt: 'desc' },
+  });
+
+  res.status(200).json(
+    new ApiResponse(200, { users }, 'Users list fetched successfully')
+  );
+});
+
+export const toggleUserStatus = catchAsync(async (req: Request, res: Response) => {
+  const { userId } = req.params;
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+
+  if (!user) {
+    throw new ApiError(404, 'User not found.');
   }
-};
 
-export const toggleUserStatus = async (req: Request, res: Response): Promise<void> => {
-  try {
-    const { userId } = req.params;
-    const user = await prisma.user.findUnique({ where: { id: userId } });
+  const updated = await prisma.user.update({
+    where: { id: userId },
+    data: { isActive: !user.isActive },
+  });
 
-    if (!user) {
-      res.status(404).json({ error: 'User not found.' });
-      return;
-    }
-
-    const updated = await prisma.user.update({
-      where: { id: userId },
-      data: { isActive: !user.isActive },
-    });
-
-    res.status(200).json({ message: `User status changed to ${updated.isActive ? 'Active' : 'Inactive'}`, user: updated });
-  } catch (error: any) {
-    res.status(500).json({ error: 'Failed to toggle user status.' });
-  }
-};
+  res.status(200).json(
+    new ApiResponse(
+      200,
+      { user: updated },
+      `User status changed to ${updated.isActive ? 'Active' : 'Inactive'}`
+    )
+  );
+});
