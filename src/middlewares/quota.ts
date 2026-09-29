@@ -18,7 +18,24 @@ export const checkQuota = (featureKey: string) => {
       });
 
       if (!activeSubscription) {
-        res.status(403).json({ error: 'No active subscription found. Please subscribe to a plan.' });
+        // Fall back to default plan feature check or allow initial access
+        const defaultPlan = await prisma.plan.findFirst({
+          where: { isDefault: true },
+          include: { features: true },
+        });
+
+        if (defaultPlan) {
+          const defaultFeature = defaultPlan.features.find((f) => f.featureKey === featureKey);
+          if (defaultFeature && !defaultFeature.isEnabled) {
+            res.status(403).json({
+              error: `The feature '${featureKey}' is disabled in the default plan.`,
+              featureKey,
+              upgradeRequired: true,
+            });
+            return;
+          }
+        }
+        next();
         return;
       }
 

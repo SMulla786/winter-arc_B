@@ -25,6 +25,10 @@ const parseEnvVars = () => {
 
 const envVars = parseEnvVars();
 
+if (envVars.NODE_ENV === 'production' && envVars.JWT_SECRET === 'super-secret-jwt-key-change-in-production') {
+  console.warn('⚠️ WARNING: Using default JWT_SECRET in production is insecure! Please set JWT_SECRET in your production .env');
+}
+
 export default {
   env: envVars.NODE_ENV,
   port: envVars.PORT,

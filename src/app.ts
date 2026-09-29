@@ -9,6 +9,8 @@ import routes from './routes';
 
 const app = express();
 
+import ApiResponse from './utils/ApiResponse';
+
 // Core Middlewares
 app.use(helmet({ crossOriginResourcePolicy: false })); // Allow cross-origin static image loads
 app.use(cors({
@@ -25,11 +27,13 @@ app.use('/uploads', express.static(path.join(__dirname, '../public/uploads')));
 
 // Health Check Endpoint
 app.get('/api/health', (req, res) => {
-  res.status(200).json({
-    status: 'UP',
-    service: 'AI Personal Lifestyle Assistant API',
-    timestamp: new Date().toISOString(),
-  });
+  res.status(200).json(
+    new ApiResponse(200, {
+      status: 'UP',
+      service: 'AI Personal Lifestyle Assistant API',
+      timestamp: new Date().toISOString(),
+    }, 'Health check successful')
+  );
 });
 
 // API Routes
@@ -38,15 +42,24 @@ app.use('/api', routes);
 
 // 404 Handler
 app.use((req, res) => {
-  res.status(404).json({ error: 'Endpoint not found.' });
+  res.status(404).json(new ApiResponse(404, null, 'Endpoint not found.'));
 });
 
 // Global Error Handler
 app.use((err: any, req: express.Request, res: express.Response, next: express.NextFunction) => {
   console.error('Unhandled API Error:', err);
-  res.status(err.status || 500).json({
-    error: err.message || 'Internal Server Error',
-  });
+  const statusCode = err.statusCode || err.status || 500;
+  const message = err.message || 'Internal Server Error';
+  const errors = err.errors ? err.errors : undefined;
+
+  res.status(statusCode).json(
+    new ApiResponse(
+      statusCode,
+      null,
+      message,
+      typeof errors === 'string' ? errors : Array.isArray(errors) ? errors.join(', ') : undefined
+    )
+  );
 });
 
 export default app;

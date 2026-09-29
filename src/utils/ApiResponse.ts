@@ -3,7 +3,7 @@ class ApiResponse<T> {
     status: boolean;
     message: string;
     data: T;
-    errors: string | undefined;
+    errors: string | object | null;
 
     /**
      * Creates an instance of ApiResponse.
@@ -12,12 +12,17 @@ class ApiResponse<T> {
      * @param message - A message to be included with the response (optional).
      * @param errors - An error message to be included with the response (optional).
      */
-    constructor(statusCode: number, data: T, message: string, errors?: string) {
+    constructor(
+        statusCode: number,
+        data: T,
+        message: string,
+        errors?: string | object | unknown[] | null,
+    ) {
         this.statusCode = statusCode;
         this.status = statusCode < 300;
         this.message = message;
         this.data = data;
-        this.errors = errors || undefined;
+        this.errors = errors || null;
     }
 }
 
